@@ -40,7 +40,7 @@ features = ["console"]
 version = "0.4"
 
 [dependencies.getrandom]
-version = "0.2"
+version = "0.3"
 features = ["js"]
 
 [dependencies.rand]
