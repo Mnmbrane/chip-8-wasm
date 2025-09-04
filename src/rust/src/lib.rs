@@ -5,6 +5,10 @@ use rand::{rngs::SmallRng, Rng, SeedableRng};
 use wasm_bindgen::prelude::*;
 use web_sys::console;
 
+macro_rules! console_log {
+    ($($t:tt)*) => (web_sys::console::log_1(&format_args!($($t)*).to_string().into()))
+}
+
 const FRAME_BUF_WIDTH: usize = 64;
 const FRAME_BUF_HEIGHT: usize = 32;
 
@@ -12,6 +16,7 @@ const MEM_MAX: usize = 0x1000;
 const REG_MAX: usize = 16;
 const FRAME_BUF_MAX: usize = FRAME_BUF_HEIGHT * FRAME_BUF_WIDTH;
 const NUM_OF_KEYS: usize = 16;
+const START_OF_FONT: usize = 0x50;
 
 type Pixel = u8;
 
@@ -39,10 +44,16 @@ fn get_nnn(opcode: u16) -> u16 {
 #[wasm_bindgen]
 extern "C" {
     fn update_canvas();
+    fn wait_for_keypress(x: usize);
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 fn update_canvas() {
+    // No-op for native/test builds
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn wait_for_keypress(x: usize) {
     // No-op for native/test builds
 }
 
@@ -67,7 +78,10 @@ pub struct Chip8 {
 
     rand_rng: SmallRng,
 
-    keys: [bool; NUM_OF_KEYS],
+    keys: [u8; NUM_OF_KEYS],
+
+    delay_timer: u8,
+    sound_timer: u8,
 }
 
 #[wasm_bindgen]
@@ -87,7 +101,10 @@ impl Chip8 {
 
             rand_rng: SmallRng::from_entropy(),
 
-            keys: [false; NUM_OF_KEYS],
+            keys: [0; NUM_OF_KEYS],
+
+            delay_timer: 0,
+            sound_timer: 0,
         };
 
         // Load font data into memory starting at 0x50
@@ -104,7 +121,7 @@ impl Chip8 {
             0xF0, 0x90, 0xF0, 0x10, 0xF0, // Digit 9 (0x7D-0x81)
         ];
 
-        chip8.memory[0x50..0x50 + font_data.len()].copy_from_slice(&font_data);
+        chip8.memory[START_OF_FONT..START_OF_FONT + font_data.len()].copy_from_slice(&font_data);
 
         chip8
     }
@@ -116,18 +133,6 @@ impl Chip8 {
     pub fn get_height(&self) -> usize {
         FRAME_BUF_HEIGHT
     }
-    pub fn get_pixel(&self, x: usize, y: usize) -> u8 {
-        self.frame_buffer[(y * FRAME_BUF_WIDTH as usize) + x]
-    }
-
-    pub fn set_key_pressed(&mut self, key_val: usize) {
-        self.keys[key_val] = true;
-    }
-
-    pub fn set_key_unpressed(&mut self, key_val: usize) {
-        self.keys[key_val] = false;
-    }
-
     // true if collision otherwise false
     fn xor_pixel(&mut self, x: usize, y: usize, val: u8) -> bool {
         // 64 x 32
@@ -142,6 +147,8 @@ impl Chip8 {
         }
         false
     }
+
+    fn store_bcd(&mut self, decimal: u16) {}
 
     pub fn handle_opcode(&mut self, opcode: u16) {
         match opcode & 0xF000 {
@@ -159,18 +166,19 @@ impl Chip8 {
             0xB000 => self.jp_offset(opcode),
             0xC000 => self.rand(opcode),
             0xD000 => self.display_sprite(opcode),
-            0xE000 => self.skip_if_key_pressed(opcode),
+            0xE000 => self.skip_if_key_state(opcode),
             0xF000 => self.misc(opcode),
             _ => unhandled_opcode_panic(opcode),
         }
     }
 
-    pub fn execute_instructions(&self) {
+    fn execute_instructions(&self) {
         // do nothing
     }
 
     pub fn tick(&mut self) {
         self.execute_instructions();
+        console_log!("Ticking...");
         //delay_and_sound_timer.tick() => {
         //    if self.delay_counter > 0 {
         //        self.delay_counter -= 1;
@@ -318,16 +326,65 @@ impl Chip8 {
         update_canvas();
     }
     // 0xE000
-    fn skip_if_key_pressed(&self, _opcode: u16) {
-        todo!()
+    fn skip_if_key_state(&mut self, opcode: u16) {
+        let x = get_x(opcode);
+        // pressed
+        if opcode & 0xFF == 0x9E && self.keys[self.reg[x] as usize] == 1 {
+            self.program_counter += 2;
+        }
+        // not pressed
+        else if opcode & 0xFF == 0xA1 && self.keys[self.reg[x] as usize] == 0 {
+            self.program_counter += 2;
+        } else {
+            unhandled_opcode_panic(opcode);
+        }
     }
     // 0xF000
-    fn misc(&self, _opcode: u16) {
-        todo!()
+    fn misc(&mut self, opcode: u16) {
+        let x = get_x(opcode);
+        let op = opcode & 0xFF;
+
+        match op {
+            0x07 => self.reg[x] = self.delay_timer,
+            0x0A => wait_for_keypress(x),
+            0x15 => self.delay_timer = self.reg[x],
+            0x18 => self.sound_timer = self.reg[x],
+            0x1E => self.index_reg += self.reg[x] as u16,
+            0x29 => self.index_reg = START_OF_FONT as u16 + (self.reg[x] as u16 * 5),
+            0x33 => {
+                self.memory[self.index_reg as usize] = self.reg[x] / 100;
+                self.memory[self.index_reg as usize + 1] = (self.reg[x] / 10) % 10;
+                self.memory[self.index_reg as usize + 2] = self.reg[x] % 10;
+            }
+            0x55 => {
+                self.memory[(self.index_reg as usize)..=(self.index_reg as usize + x)]
+                    .copy_from_slice(&self.reg[0..=x]);
+                self.index_reg += (x + 1) as u16;
+            }
+            0x65 => {
+                self.reg[0..=x].copy_from_slice(
+                    &self.memory[(self.index_reg as usize)..=(self.index_reg as usize + x)],
+                );
+                self.index_reg += (x + 1) as u16;
+            }
+            _ => unhandled_opcode_panic(opcode),
+        }
     }
 
     pub fn get_screen(&self) -> *const Pixel {
         self.frame_buffer.as_ptr()
+    }
+
+    pub fn get_memory(&self) -> *const u8 {
+        self.memory.as_ptr()
+    }
+
+    pub fn get_registers(&self) -> *const u8 {
+        self.reg.as_ptr()
+    }
+
+    pub fn get_keys(&self) -> *const u8 {
+        self.reg.as_ptr()
     }
 }
 

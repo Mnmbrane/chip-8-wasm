@@ -4,6 +4,7 @@ import '../style/main.css';
 
 // Global emulator instance for WASM callback
 let globalEmulatorInstance: Chip8Emulator | null = null;
+const regResetValue: number = -1;
 
 // Export update_canvas function for WASM to call
 (window as any).update_canvas = function () {
@@ -12,6 +13,20 @@ let globalEmulatorInstance: Chip8Emulator | null = null;
   }
 };
 
+// Export stop_main_loop function for WASM to call
+(window as any).wait_for_key_press = function (reg: number) {
+  if (globalEmulatorInstance) {
+    globalEmulatorInstance.stopMainLoop();
+    globalEmulatorInstance.saveToReg = reg;
+  }
+};
+
+// Export play_sound function for WASM to call
+(window as any).play_sound = function () {
+  if (globalEmulatorInstance) {
+    globalEmulatorInstance.playSound();
+  }
+};
 
 class Chip8Emulator {
   // Static properties for dimensions - initialized once
@@ -23,9 +38,14 @@ class Chip8Emulator {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private pixels: Uint8Array;
+  private memory: Uint8Array;
+  private reg: Uint8Array;
+  private keys: Uint8Array;
   private lastTime = 0;
   private timerCycleTime = 1000 / 60; // 60Hz timers
   private lastTimerUpdate = 0;
+  private isMainLoopRunning = false;
+  public saveToReg = regResetValue;
 
   static initializeDimensions(chip8: Chip8) {
     if (!Chip8Emulator.WIDTH || !Chip8Emulator.HEIGHT) {
@@ -62,10 +82,16 @@ class Chip8Emulator {
     // Initialize pixels array once
     const screenDataPtr = this.chip8.get_screen();
     this.pixels = new Uint8Array(wasm.memory.buffer, screenDataPtr, Chip8Emulator.WIDTH * Chip8Emulator.HEIGHT);
+    const memoryPtr = this.chip8.get_memory();
+    this.memory = new Uint8Array(wasm.memory.buffer, memoryPtr, 0x1000);
+    const regPtr = this.chip8.get_registers();
+    this.reg = new Uint8Array(wasm.memory.buffer, regPtr, 16);
+    const keyPtr = this.chip8.get_keys();
+    this.keys = new Uint8Array(wasm.memory.buffer, keyPtr, 16);
 
     if (screenContainer) screenContainer.appendChild(this.canvas);
     this.setupKeyboardHandling();
-    this.startGameLoop();
+    this.startMainLoop();
   }
 
   private createCanvas(): HTMLCanvasElement {
@@ -103,30 +129,39 @@ class Chip8Emulator {
     }
   }
 
-  private gameLoop = (currentTime: number) => {
-    const deltaTime = currentTime - this.lastTime;
-    this.lastTime = currentTime;
+  private mainLoop = (currentTime: number) => {
 
-    // CPU runs at browser refresh rate (usually 60Hz)
-    this.chip8.tick();
+    if (this.isMainLoopRunning) {
+      const deltaTime = currentTime - this.lastTime;
+      this.lastTime = currentTime;
 
-    // Timer updates (60Hz) - only decrement timers at 60Hz even if running faster
-    if (currentTime - this.lastTimerUpdate >= this.timerCycleTime) {
-      // Timer decrements happen in chip8.tick()
-      this.lastTimerUpdate = currentTime;
+      // CPU runs at browser refresh rate (usually 60Hz)
+      this.chip8.tick();
+
+      // Timer updates (60Hz) - only decrement timers at 60Hz even if running faster
+      if (currentTime - this.lastTimerUpdate >= this.timerCycleTime) {
+        // Timer decrements happen in chip8.tick()
+        this.lastTimerUpdate = currentTime;
+      }
+      requestAnimationFrame(this.mainLoop);
     }
-
-    // Display updates are now handled by WASM callback (update_canvas)
-    // this.updateDisplay(); // Removed - now called via WASM
-
-    requestAnimationFrame(this.gameLoop);
   }
 
-  private startGameLoop() {
+  private startMainLoop() {
     this.lastTime = performance.now();
     this.lastTimerUpdate = this.lastTime;
-    requestAnimationFrame(this.gameLoop);
+    this.isMainLoopRunning = true;
+    requestAnimationFrame(this.mainLoop);
   }
+
+  public playSound() {
+    // play a sound
+  }
+
+  public stopMainLoop() {
+    this.isMainLoopRunning = false;
+  }
+
 
   private setupKeyboardHandling() {
     // CHIP-8 keypad mapping to keyboard keys
@@ -147,7 +182,18 @@ class Chip8Emulator {
       const key = event.key.toLowerCase();
       if (keyMap.hasOwnProperty(key)) {
         event.preventDefault();
-        this.chip8.set_key_pressed(keyMap[key]);
+
+        // save to the register 
+        if (!this.isMainLoopRunning) {
+          this.reg[this.saveToReg] = keyMap[key];
+          this.keys[keyMap[key]] = 1;
+          this.saveToReg = regResetValue;
+          this.startMainLoop();
+        }
+      }
+      // test key to halt
+      else if (key === 'b') {
+        this.stopMainLoop();
       }
     });
 
@@ -155,7 +201,7 @@ class Chip8Emulator {
       const key = event.key.toLowerCase();
       if (keyMap.hasOwnProperty(key)) {
         event.preventDefault();
-        this.chip8.set_key_unpressed(keyMap[key]);
+        this.keys[keyMap[key]] = 0;
       }
     });
   }
@@ -165,7 +211,7 @@ let emulatorInstance: Chip8Emulator | null = null;
 
 function main() {
   // Prevent multiple instances
-  if (emulatorInstance) {
+  if (globalEmulatorInstance) {
     console.log('Emulator already running');
     return;
   }
