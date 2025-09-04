@@ -4,7 +4,7 @@ const path = require('path');
 module.exports = {
   entry: "./bootstrap.js",
   output: {
-    path: path.resolve(__dirname, "dist"),
+    path: path.resolve(__dirname, "../dist"),
     filename: "bootstrap.js",
   },
   mode: "development",
@@ -15,7 +15,12 @@ module.exports = {
     rules: [
       {
         test: /\.tsx?$/,
-        use: 'ts-loader',
+        use: {
+          loader: 'ts-loader',
+          options: {
+            configFile: path.resolve(__dirname, 'tsconfig.json')
+          }
+        },
         exclude: /node_modules/,
       },
     ],
@@ -25,7 +30,10 @@ module.exports = {
   },
   plugins: [
     new CopyWebpackPlugin({
-      patterns: ['index.html']
+      patterns: [{
+        from: '../src/web/src/index.html',
+        to: 'index.html'
+      }]
     })
   ],
 };

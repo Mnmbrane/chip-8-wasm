@@ -1,5 +1,5 @@
-import { Chip8 } from './pkg';
-import * as wasm from './pkg/chip8_emulator_bg.wasm';
+import { Chip8 } from '../../../pkg';
+import * as wasm from '../../../pkg/chip8_emulator_bg.wasm';
 
 class Chip8Emulator {
   private chip8: Chip8;

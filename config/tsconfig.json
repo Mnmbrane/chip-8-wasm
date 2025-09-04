@@ -16,11 +16,11 @@
     "sourceMap": true,
     "declaration": false,
     "outDir": "./docs",
-    "rootDir": "./"
+    "rootDir": "../"
   },
   "include": [
-    "js/**/*",
-    "*.ts"
+    "../src/web/src/**/*",
+    "../*.ts"
   ],
   "exclude": [
     "node_modules",

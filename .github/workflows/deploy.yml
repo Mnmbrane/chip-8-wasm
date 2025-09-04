@@ -28,13 +28,14 @@ jobs:
       run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
     
     - name: Build WASM package
-      run: wasm-pack build --target bundler --out-dir pkg
+      run: cd src/rust && wasm-pack build --target bundler --out-dir ../../pkg
     
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
         node-version: '18'
         cache: 'npm'
+        cache-dependency-path: 'package-lock.json'
     
     - name: Install dependencies
       run: npm install
