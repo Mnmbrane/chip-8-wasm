@@ -69,12 +69,12 @@ pub struct Chip8 {
     reg: [u8; REG_MAX],
     index_reg: u16,
 
-    stack: Vec<u16>,
+    stack: Vec<usize>,
 
     // 64x32 frame buffer
     frame_buffer: [Pixel; FRAME_BUF_MAX],
 
-    program_counter: u16,
+    program_counter: usize,
 
     rand_rng: SmallRng,
 
@@ -97,7 +97,7 @@ impl Chip8 {
 
             frame_buffer: [0; FRAME_BUF_MAX],
 
-            program_counter: 0,
+            program_counter: 0x200,
 
             rand_rng: SmallRng::from_entropy(),
 
@@ -126,6 +126,17 @@ impl Chip8 {
         chip8
     }
 
+    pub fn reset(&mut self) {
+        self.memory[0x200..MEM_MAX].fill(0);
+        self.stack.clear();
+        self.frame_buffer.fill(0);
+        self.index_reg = 0;
+        self.program_counter = 0x200;
+        self.keys.fill(0);
+        self.delay_timer = 0;
+        self.sound_timer = 0;
+    }
+
     pub fn get_width(&self) -> usize {
         FRAME_BUF_WIDTH
     }
@@ -147,8 +158,6 @@ impl Chip8 {
         }
         false
     }
-
-    fn store_bcd(&mut self, decimal: u16) {}
 
     pub fn handle_opcode(&mut self, opcode: u16) {
         match opcode & 0xF000 {
@@ -172,8 +181,11 @@ impl Chip8 {
         }
     }
 
-    fn execute_instructions(&self) {
-        // do nothing
+    fn execute_instructions(&mut self) {
+        let opcode = (self.memory[self.program_counter] as u16) << 8
+            | self.memory[self.program_counter + 1] as u16;
+        self.program_counter += 2;
+        self.handle_opcode(opcode);
     }
 
     pub fn tick(&mut self) {
@@ -202,12 +214,12 @@ impl Chip8 {
     }
     // 0x1000
     fn jp_addr(&mut self, opcode: u16) {
-        self.program_counter = get_nnn(opcode);
+        self.program_counter = get_nnn(opcode) as usize;
     }
     // 0x2000
     fn call_addr(&mut self, opcode: u16) {
         self.stack.push(self.program_counter);
-        self.program_counter = get_nnn(opcode);
+        self.program_counter = get_nnn(opcode) as usize;
     }
     // 0x3000
     fn skip_if_equal(&mut self, opcode: u16) {
@@ -286,7 +298,7 @@ impl Chip8 {
     }
     // 0xB000
     fn jp_offset(&mut self, opcode: u16) {
-        self.program_counter = get_nnn(opcode) + self.reg[0] as u16;
+        self.program_counter = get_nnn(opcode) as usize + self.reg[0] as usize;
     }
     // 0xC000
     fn rand(&mut self, opcode: u16) {

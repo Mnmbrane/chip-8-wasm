@@ -37,8 +37,20 @@
         <p class="subtitle">Emulator</p>
       </div>
 
-      <div class="screen-container">
-        <!-- Canvas will be inserted here by JavaScript -->
+      <div class="emulator-section">
+        <div class="screen-container">
+          <!-- Canvas will be inserted here by JavaScript -->
+        </div>
+        
+        <div class="controls">
+          <div class="rom-loader">
+            <label for="rom-file" class="rom-loader-label">
+              <span class="rom-icon">📁</span>
+              <span class="rom-text">Load ROM</span>
+            </label>
+            <input type="file" id="rom-file" accept=".ch8,.chip8" class="rom-input">
+          </div>
+        </div>
       </div>
 
       <div class="info">

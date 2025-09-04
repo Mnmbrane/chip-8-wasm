@@ -91,6 +91,7 @@ class Chip8Emulator {
 
     if (screenContainer) screenContainer.appendChild(this.canvas);
     this.setupKeyboardHandling();
+    this.setupRomLoader();
     this.startMainLoop();
   }
 
@@ -162,6 +163,52 @@ class Chip8Emulator {
     this.isMainLoopRunning = false;
   }
 
+  private setupRomLoader() {
+    const romInput = document.getElementById('rom-file') as HTMLInputElement;
+    if (!romInput) {
+      console.error('ROM file input not found');
+      return;
+    }
+
+    romInput.addEventListener('change', async (event) => {
+      const file = (event.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const romData = new Uint8Array(arrayBuffer);
+        
+        console.log(`Loading ROM: ${file.name} (${romData.length} bytes)`);
+        
+        // Reset the emulator first
+        this.chip8.reset();
+        
+        // Load ROM into memory starting at 0x200
+        const ROM_START = 0x200;
+        const maxRomSize = 0x1000 - ROM_START; // Available memory for ROM
+        
+        if (romData.length > maxRomSize) {
+          console.warn(`ROM too large (${romData.length} bytes). Truncating to ${maxRomSize} bytes.`);
+        }
+        
+        // Copy ROM data directly into WASM memory
+        const bytesToCopy = Math.min(romData.length, maxRomSize);
+        for (let i = 0; i < bytesToCopy; i++) {
+          this.memory[ROM_START + i] = romData[i];
+        }
+        
+        console.log(`ROM loaded successfully: ${bytesToCopy} bytes at 0x${ROM_START.toString(16)}`);
+        
+        // Clear the screen and update display
+        this.chip8.handle_opcode(0x00E0); // CLS - Clear screen
+        this.updateDisplay();
+        
+      } catch (error) {
+        console.error('Error loading ROM:', error);
+        alert('Failed to load ROM file');
+      }
+    });
+  }
 
   private setupKeyboardHandling() {
     // CHIP-8 keypad mapping to keyboard keys
