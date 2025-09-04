@@ -92,7 +92,7 @@ class Chip8Emulator {
     if (screenContainer) screenContainer.appendChild(this.canvas);
     this.setupKeyboardHandling();
     this.setupRomLoader();
-    this.startMainLoop();
+    // Don't start main loop until ROM is loaded
   }
 
   private createCanvas(): HTMLCanvasElement {
@@ -203,6 +203,11 @@ class Chip8Emulator {
         this.chip8.handle_opcode(0x00E0); // CLS - Clear screen
         this.updateDisplay();
         
+        // Start the main loop now that ROM is loaded
+        if (!this.isMainLoopRunning) {
+          this.startMainLoop();
+        }
+        
       } catch (error) {
         console.error('Error loading ROM:', error);
         alert('Failed to load ROM file');
@@ -265,26 +270,10 @@ function main() {
 
   const chip8 = Chip8.new();
 
-  // Create emulator instance first
+  // Create emulator instance - it will wait for ROM to be loaded
   emulatorInstance = new Chip8Emulator(chip8);
 
-  // Test simple draw opcode
-  console.log("Testing draw opcode...");
-
-  // Clear screen first
-  chip8.handle_opcode(0x00E0);  // CLS - Clear screen
-
-  // Set position (10, 10)
-  chip8.handle_opcode(0x600A);  // Set V0 = 10 (x position)
-  chip8.handle_opcode(0x610A);  // Set V1 = 10 (y position)
-
-  // Set I to point to font data (which should be loaded at 0x55 for digit "1")
-  chip8.handle_opcode(0xA055);  // Set I = 0x055
-
-  // Draw 5-byte sprite at (V0, V1)
-  chip8.handle_opcode(0xD015);  // Draw sprite: D=draw, 0=V0, 1=V1, 5=5 bytes
-
-  console.log("Draw opcode executed");
+  console.log("CHIP-8 Emulator ready. Load a ROM to start.");
 }
 
 main();

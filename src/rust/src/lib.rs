@@ -21,6 +21,7 @@ const START_OF_FONT: usize = 0x50;
 type Pixel = u8;
 
 fn unhandled_opcode_panic(opcode: u16) {
+    console_log!("ERROR: Unhandled opcode 0x{:04x}", opcode);
     panic!("Unhandled opcode 0x{:04x}", opcode);
 }
 // Opcode helper functions
@@ -190,7 +191,6 @@ impl Chip8 {
 
     pub fn tick(&mut self) {
         self.execute_instructions();
-        console_log!("Ticking...");
         //delay_and_sound_timer.tick() => {
         //    if self.delay_counter > 0 {
         //        self.delay_counter -= 1;
