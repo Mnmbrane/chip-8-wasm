@@ -7,5 +7,5 @@ pkg/
 wasm-pack.log
 
 # Frontend
-frontend/node_modules
-frontend/dist
+node_modules/
+dist/
