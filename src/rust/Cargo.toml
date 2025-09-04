@@ -44,7 +44,7 @@ version = "0.2"
 features = ["js"]
 
 [dependencies.rand]
-version = "0.8"
+version = "0.9"
 features = ["small_rng"]
 
 # The `console_error_panic_hook` crate provides better debugging of panics by
