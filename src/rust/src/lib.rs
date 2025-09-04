@@ -79,6 +79,14 @@ impl Chip8 {
             keys: [false; NUM_OF_KEYS],
         }
     }
+
+    pub fn get_width(&self) -> usize {
+        FRAME_BUF_WIDTH
+    }
+
+    pub fn get_height(&self) -> usize {
+        FRAME_BUF_HEIGHT
+    }
     pub fn get_pixel(&self, x: usize, y: usize) -> u8 {
         self.frame_buffer[(y * FRAME_BUF_WIDTH as usize) + x]
     }

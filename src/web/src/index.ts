@@ -1,29 +1,62 @@
 import { Chip8 } from '../../../pkg';
 import * as wasm from '../../../pkg/chip8_emulator_bg.wasm';
+import '../style/main.css';
+
 
 class Chip8Emulator {
+  // Static properties for dimensions - initialized once
+  private static WIDTH: number;
+  private static HEIGHT: number;
+  private static readonly SCALE = 15;
+
   private chip8: Chip8;
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private lastTime = 0;
   private timerCycleTime = 1000 / 60; // 60Hz timers
   private lastTimerUpdate = 0;
+  private frameCount = 0;
+
+  static initializeDimensions(chip8: Chip8) {
+    if (!Chip8Emulator.WIDTH || !Chip8Emulator.HEIGHT) {
+      Chip8Emulator.WIDTH = chip8.get_width();
+      Chip8Emulator.HEIGHT = chip8.get_height();
+
+      // Set CSS custom properties
+      const aspectRatio = Chip8Emulator.WIDTH / Chip8Emulator.HEIGHT;
+      document.documentElement.style.setProperty('--chip8-width', Chip8Emulator.WIDTH.toString());
+      document.documentElement.style.setProperty('--chip8-height', Chip8Emulator.HEIGHT.toString());
+      document.documentElement.style.setProperty('--chip8-aspect-ratio', aspectRatio.toString());
+    }
+  }
 
   constructor(chip8: Chip8) {
+    // Initialize static dimensions if not already done
+    Chip8Emulator.initializeDimensions(chip8);
+
+    const screenContainer = document.querySelector('.screen-container');
+
+    // Clear any existing canvases
+    if (screenContainer) {
+      const existingCanvases = screenContainer.querySelectorAll('canvas');
+      existingCanvases.forEach(canvas => canvas.remove());
+    }
+
     this.chip8 = chip8;
     this.canvas = this.createCanvas();
     this.ctx = this.canvas.getContext('2d')!;
-    this.setupDisplay();
+
+    if (screenContainer) screenContainer.appendChild(this.canvas);
     this.setupKeyboardHandling();
     this.startGameLoop();
   }
 
   private createCanvas(): HTMLCanvasElement {
     const canvas = document.createElement('canvas');
-    canvas.width = 960; // 64 * 15 pixel scale (640 * 1.5)
-    canvas.height = 480; // 32 * 15 pixel scale (320 * 1.5)
-    canvas.style.backgroundColor = '#000';
-    canvas.style.imageRendering = 'pixelated';
+
+    canvas.width = Chip8Emulator.WIDTH * Chip8Emulator.SCALE;
+    canvas.height = Chip8Emulator.HEIGHT * Chip8Emulator.SCALE;
+    console.log(`Canvas created: ${canvas.width}×${canvas.height} (${Chip8Emulator.WIDTH}×${Chip8Emulator.HEIGHT} logical pixels)`);
     return canvas;
   }
 
@@ -43,15 +76,15 @@ class Chip8Emulator {
 
     // Get screen data pointer and create Uint8Array view
     const screenDataPtr = this.chip8.get_screen();
-    const pixels = new Uint8Array(wasm.memory.buffer, screenDataPtr, 64 * 32);
+    const pixels = new Uint8Array(wasm.memory.buffer, screenDataPtr, Chip8Emulator.WIDTH * Chip8Emulator.HEIGHT);
 
     this.ctx.fillStyle = '#ffffff'; // White pixels
 
-    for (let row = 0; row < 32; row++) {
-      for (let col = 0; col < 64; col++) {
-        const idx = row * 64 + col;
+    for (let row = 0; row < Chip8Emulator.HEIGHT; row++) {
+      for (let col = 0; col < Chip8Emulator.WIDTH; col++) {
+        const idx = row * Chip8Emulator.WIDTH + col;
         if (pixels[idx] === 1) {
-          this.ctx.fillRect(col * 15, row * 15, 15, 15);
+          this.ctx.fillRect(col * Chip8Emulator.SCALE, row * Chip8Emulator.SCALE, Chip8Emulator.SCALE, Chip8Emulator.SCALE);
         }
       }
     }
@@ -72,6 +105,7 @@ class Chip8Emulator {
 
     // Update display
     this.updateDisplay();
+    this.frameCount++;
 
     requestAnimationFrame(this.gameLoop);
   }
@@ -115,17 +149,41 @@ class Chip8Emulator {
   }
 }
 
-function main() {
-  const chip8 = Chip8.new();
+let emulatorInstance: Chip8Emulator | null = null;
 
-  // Create checkerboard pattern
-  for (let y = 0; y < 32; y++) {
-    for (let x = 0; x < 64; x++) {
-      chip8.xor_pixel(x, y, (x + y) % 2);
-    }
+function main() {
+  // Prevent multiple instances
+  if (emulatorInstance) {
+    console.log('Emulator already running');
+    return;
   }
 
-  new Chip8Emulator(chip8);
+  const chip8 = Chip8.new();
+
+  // Get dynamic dimensions
+  const width = chip8.get_width();
+  const height = chip8.get_height();
+
+  // Create a border pattern using dynamic dimensions
+  // Top and bottom borders
+  for (let x = 0; x < width; x++) {
+    chip8.xor_pixel(x, 0, 1);         // Top row
+    chip8.xor_pixel(x, height - 1, 1); // Bottom row
+  }
+
+  // Left and right borders  
+  for (let y = 0; y < height; y++) {
+    chip8.xor_pixel(0, y, 1);        // Left column
+    chip8.xor_pixel(width - 1, y, 1); // Right column
+  }
+
+  // Add corner markers
+  chip8.xor_pixel(1, 1, 1);           // Top-left marker
+  chip8.xor_pixel(width - 2, 1, 1);   // Top-right marker  
+  chip8.xor_pixel(1, height - 2, 1);  // Bottom-left marker
+  chip8.xor_pixel(width - 2, height - 2, 1); // Bottom-right marker
+
+  emulatorInstance = new Chip8Emulator(chip8);
 }
 
 main();

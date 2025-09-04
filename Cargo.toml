@@ -1,0 +1,8 @@
+[workspace]
+members = ["src/rust"]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+authors = ["You <you@example.com>"]
+edition = "2018"
