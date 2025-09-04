@@ -2,6 +2,16 @@ import { Chip8 } from '../../../pkg';
 import * as wasm from '../../../pkg/chip8_emulator_bg.wasm';
 import '../style/main.css';
 
+// Global emulator instance for WASM callback
+let globalEmulatorInstance: Chip8Emulator | null = null;
+
+// Export update_canvas function for WASM to call
+(window as any).update_canvas = function () {
+  if (globalEmulatorInstance) {
+    globalEmulatorInstance.updateDisplay();
+  }
+};
+
 
 class Chip8Emulator {
   // Static properties for dimensions - initialized once
@@ -12,10 +22,10 @@ class Chip8Emulator {
   private chip8: Chip8;
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
+  private pixels: Uint8Array;
   private lastTime = 0;
   private timerCycleTime = 1000 / 60; // 60Hz timers
   private lastTimerUpdate = 0;
-  private frameCount = 0;
 
   static initializeDimensions(chip8: Chip8) {
     if (!Chip8Emulator.WIDTH || !Chip8Emulator.HEIGHT) {
@@ -34,6 +44,9 @@ class Chip8Emulator {
     // Initialize static dimensions if not already done
     Chip8Emulator.initializeDimensions(chip8);
 
+    // Set global instance for WASM callback
+    globalEmulatorInstance = this;
+
     const screenContainer = document.querySelector('.screen-container');
 
     // Clear any existing canvases
@@ -45,6 +58,10 @@ class Chip8Emulator {
     this.chip8 = chip8;
     this.canvas = this.createCanvas();
     this.ctx = this.canvas.getContext('2d')!;
+
+    // Initialize pixels array once
+    const screenDataPtr = this.chip8.get_screen();
+    this.pixels = new Uint8Array(wasm.memory.buffer, screenDataPtr, Chip8Emulator.WIDTH * Chip8Emulator.HEIGHT);
 
     if (screenContainer) screenContainer.appendChild(this.canvas);
     this.setupKeyboardHandling();
@@ -69,21 +86,17 @@ class Chip8Emulator {
     }
   }
 
-  private updateDisplay() {
+  public updateDisplay() {
     // Clear canvas
     this.ctx.fillStyle = '#000';
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-
-    // Get screen data pointer and create Uint8Array view
-    const screenDataPtr = this.chip8.get_screen();
-    const pixels = new Uint8Array(wasm.memory.buffer, screenDataPtr, Chip8Emulator.WIDTH * Chip8Emulator.HEIGHT);
 
     this.ctx.fillStyle = '#ffffff'; // White pixels
 
     for (let row = 0; row < Chip8Emulator.HEIGHT; row++) {
       for (let col = 0; col < Chip8Emulator.WIDTH; col++) {
         const idx = row * Chip8Emulator.WIDTH + col;
-        if (pixels[idx] === 1) {
+        if (this.pixels[idx] === 1) {
           this.ctx.fillRect(col * Chip8Emulator.SCALE, row * Chip8Emulator.SCALE, Chip8Emulator.SCALE, Chip8Emulator.SCALE);
         }
       }
@@ -103,9 +116,8 @@ class Chip8Emulator {
       this.lastTimerUpdate = currentTime;
     }
 
-    // Update display
-    this.updateDisplay();
-    this.frameCount++;
+    // Display updates are now handled by WASM callback (update_canvas)
+    // this.updateDisplay(); // Removed - now called via WASM
 
     requestAnimationFrame(this.gameLoop);
   }
@@ -160,30 +172,26 @@ function main() {
 
   const chip8 = Chip8.new();
 
-  // Get dynamic dimensions
-  const width = chip8.get_width();
-  const height = chip8.get_height();
-
-  // Create a border pattern using dynamic dimensions
-  // Top and bottom borders
-  for (let x = 0; x < width; x++) {
-    chip8.xor_pixel(x, 0, 1);         // Top row
-    chip8.xor_pixel(x, height - 1, 1); // Bottom row
-  }
-
-  // Left and right borders  
-  for (let y = 0; y < height; y++) {
-    chip8.xor_pixel(0, y, 1);        // Left column
-    chip8.xor_pixel(width - 1, y, 1); // Right column
-  }
-
-  // Add corner markers
-  chip8.xor_pixel(1, 1, 1);           // Top-left marker
-  chip8.xor_pixel(width - 2, 1, 1);   // Top-right marker  
-  chip8.xor_pixel(1, height - 2, 1);  // Bottom-left marker
-  chip8.xor_pixel(width - 2, height - 2, 1); // Bottom-right marker
-
+  // Create emulator instance first
   emulatorInstance = new Chip8Emulator(chip8);
+
+  // Test simple draw opcode
+  console.log("Testing draw opcode...");
+
+  // Clear screen first
+  chip8.handle_opcode(0x00E0);  // CLS - Clear screen
+
+  // Set position (10, 10)
+  chip8.handle_opcode(0x600A);  // Set V0 = 10 (x position)
+  chip8.handle_opcode(0x610A);  // Set V1 = 10 (y position)
+
+  // Set I to point to font data (which should be loaded at 0x55 for digit "1")
+  chip8.handle_opcode(0xA055);  // Set I = 0x055
+
+  // Draw 5-byte sprite at (V0, V1)
+  chip8.handle_opcode(0xD015);  // Draw sprite: D=draw, 0=V0, 1=V1, 5=5 bytes
+
+  console.log("Draw opcode executed");
 }
 
 main();

@@ -35,6 +35,17 @@ fn get_nnn(opcode: u16) -> u16 {
     opcode & 0x0FFF
 }
 
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
+extern "C" {
+    fn update_canvas();
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn update_canvas() {
+    // No-op for native/test builds
+}
+
 #[wasm_bindgen]
 pub struct Chip8 {
     // 0-512 bytes: Chip8 interpreter
@@ -62,7 +73,7 @@ pub struct Chip8 {
 #[wasm_bindgen]
 impl Chip8 {
     pub fn new() -> Self {
-        Self {
+        let mut chip8 = Self {
             memory: [0u8; MEM_MAX],
 
             reg: [0u8; REG_MAX],
@@ -77,7 +88,25 @@ impl Chip8 {
             rand_rng: SmallRng::from_entropy(),
 
             keys: [false; NUM_OF_KEYS],
-        }
+        };
+
+        // Load font data into memory starting at 0x50
+        let font_data = [
+            0xF0, 0x90, 0x90, 0x90, 0xF0, // Digit 0 (0x50-0x54)
+            0x20, 0x60, 0x20, 0x20, 0x70, // Digit 1 (0x55-0x59)
+            0xF0, 0x10, 0xF0, 0x80, 0xF0, // Digit 2 (0x5A-0x5E)
+            0xF0, 0x10, 0xF0, 0x10, 0xF0, // Digit 3 (0x5F-0x63)
+            0x90, 0x90, 0xF0, 0x10, 0x10, // Digit 4 (0x64-0x68)
+            0xF0, 0x80, 0xF0, 0x10, 0xF0, // Digit 5 (0x69-0x6D)
+            0xF0, 0x80, 0xF0, 0x90, 0xF0, // Digit 6 (0x6E-0x72)
+            0xF0, 0x10, 0x20, 0x40, 0x40, // Digit 7 (0x73-0x77)
+            0xF0, 0x90, 0xF0, 0x90, 0xF0, // Digit 8 (0x78-0x7C)
+            0xF0, 0x90, 0xF0, 0x10, 0xF0, // Digit 9 (0x7D-0x81)
+        ];
+
+        chip8.memory[0x50..0x50 + font_data.len()].copy_from_slice(&font_data);
+
+        chip8
     }
 
     pub fn get_width(&self) -> usize {
@@ -100,9 +129,9 @@ impl Chip8 {
     }
 
     // true if collision otherwise false
-    pub fn xor_pixel(&mut self, x: usize, y: usize, val: u8) -> bool {
+    fn xor_pixel(&mut self, x: usize, y: usize, val: u8) -> bool {
         // 64 x 32
-        let index: usize = (y * FRAME_BUF_WIDTH as usize) + x;
+        let index: usize = (x * FRAME_BUF_WIDTH as usize) + y;
         let start_val = self.frame_buffer[index];
 
         if index < FRAME_BUF_MAX {
@@ -153,57 +182,60 @@ impl Chip8 {
         //}
     }
     // 0x0000
-    pub fn sys_addr(&mut self, opcode: u16) {
+    fn sys_addr(&mut self, opcode: u16) {
         match opcode {
-            0x00E0 => self.frame_buffer.fill(0),
+            0x00E0 => {
+                self.frame_buffer.fill(0);
+                update_canvas();
+            }
             0x00EE => self.program_counter = self.stack.pop().unwrap(),
             _ => unhandled_opcode_panic(opcode),
         }
     }
     // 0x1000
-    pub fn jp_addr(&mut self, opcode: u16) {
+    fn jp_addr(&mut self, opcode: u16) {
         self.program_counter = get_nnn(opcode);
     }
     // 0x2000
-    pub fn call_addr(&mut self, opcode: u16) {
+    fn call_addr(&mut self, opcode: u16) {
         self.stack.push(self.program_counter);
         self.program_counter = get_nnn(opcode);
     }
     // 0x3000
-    pub fn skip_if_equal(&mut self, opcode: u16) {
+    fn skip_if_equal(&mut self, opcode: u16) {
         if self.reg[get_x(opcode)] == get_kk(opcode) {
             self.program_counter += 2;
         }
     }
     // 0x4000
-    pub fn skip_if_not_equal(&mut self, opcode: u16) {
+    fn skip_if_not_equal(&mut self, opcode: u16) {
         if self.reg[get_x(opcode)] != get_kk(opcode) {
             self.program_counter += 2;
         }
     }
     // 0x5000
-    pub fn skip_if_reg_equal(&mut self, opcode: u16) {
+    fn skip_if_reg_equal(&mut self, opcode: u16) {
         if self.reg[get_x(opcode)] == self.reg[get_y(opcode)] {
             self.program_counter += 2;
         }
     }
     // 0x9000
-    pub fn skip_if_reg_not_equal(&mut self, opcode: u16) {
+    fn skip_if_reg_not_equal(&mut self, opcode: u16) {
         if self.reg[get_x(opcode)] != self.reg[get_y(opcode)] {
             self.program_counter += 2;
         }
     }
     // 0x6000
-    pub fn set_reg(&mut self, opcode: u16) {
+    fn set_reg(&mut self, opcode: u16) {
         self.reg[get_x(opcode)] = get_kk(opcode);
     }
     // 0x7000
-    pub fn add_reg(&mut self, opcode: u16) {
+    fn add_reg(&mut self, opcode: u16) {
         let x = get_x(opcode);
         self.reg[x] = self.reg[x].wrapping_add(get_kk(opcode));
     }
     // 0x8000
-    pub fn reg_ops(&mut self, opcode: u16) {
+    fn reg_ops(&mut self, opcode: u16) {
         let x = get_x(opcode);
         let y = get_y(opcode);
         let op = opcode & 0xF;
@@ -241,19 +273,19 @@ impl Chip8 {
         }
     }
     // 0xA000
-    pub fn set_index(&mut self, opcode: u16) {
+    fn set_index(&mut self, opcode: u16) {
         self.index_reg = get_nnn(opcode);
     }
     // 0xB000
-    pub fn jp_offset(&mut self, opcode: u16) {
+    fn jp_offset(&mut self, opcode: u16) {
         self.program_counter = get_nnn(opcode) + self.reg[0] as u16;
     }
     // 0xC000
-    pub fn rand(&mut self, opcode: u16) {
+    fn rand(&mut self, opcode: u16) {
         self.reg[get_x(opcode)] = self.rand_rng.gen::<u8>() & get_kk(opcode);
     }
     // 0xD000
-    pub fn display_sprite(&mut self, opcode: u16) {
+    fn display_sprite(&mut self, opcode: u16) {
         let bytes = opcode & 0xF;
         let (x, y) = (get_x(opcode), get_y(opcode));
 
@@ -274,6 +306,7 @@ impl Chip8 {
                 // we start at the least significant bit
                 let bit = (self.memory[mem_index] >> (7 - i)) & 1;
 
+                // x represents the co
                 if self.xor_pixel(pixel_x, pixel_y, bit) {
                     self.reg[0xF] = 1;
                 }
@@ -282,13 +315,14 @@ impl Chip8 {
             }
             pixel_x += 1;
         }
+        update_canvas();
     }
     // 0xE000
-    pub fn skip_if_key_pressed(&self, _opcode: u16) {
+    fn skip_if_key_pressed(&self, _opcode: u16) {
         todo!()
     }
     // 0xF000
-    pub fn misc(&self, _opcode: u16) {
+    fn misc(&self, _opcode: u16) {
         todo!()
     }
 
