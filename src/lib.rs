@@ -276,9 +276,13 @@ impl Chip8 {
         }
     }
     // 0xE000
-    pub fn skip_if_key_pressed(&self, opcode: u16) {}
-    // 0xF000
-    pub fn misc(&self, opcode: u16) {}
+    //pub fn skip_if_key_pressed(&self, opcode: u16) {
+    //    todo!()
+    //}
+    //// 0xF000
+    //pub fn misc(&self, opcode: u16) {
+    //    todo!()
+    //}
 
     pub fn get_screen(&self) -> *const Pixel {
         self.frame_buffer.as_ptr()
