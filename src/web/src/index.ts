@@ -42,6 +42,9 @@ class Chip8Emulator {
   private memory: Uint8Array;
   private reg: Uint8Array;
   private keys: Uint8Array;
+  private imageData: ImageData;
+  private bufferCanvas: HTMLCanvasElement;
+  private bufferCtx: CanvasRenderingContext2D;
   private lastTime = 0;
   private timerCycleTime = 1000 / 60; // 60Hz timers
   private lastTimerUpdate = 0;
@@ -84,6 +87,15 @@ class Chip8Emulator {
     this.canvas = this.createCanvas();
     this.ctx = this.canvas.getContext('2d')!;
 
+    // Create buffer canvas for pixel-level operations
+    this.bufferCanvas = document.createElement('canvas');
+    this.bufferCanvas.width = Chip8Emulator.WIDTH;
+    this.bufferCanvas.height = Chip8Emulator.HEIGHT;
+    this.bufferCtx = this.bufferCanvas.getContext('2d')!;
+
+    // Create ImageData for fast pixel manipulation
+    this.imageData = this.bufferCtx.createImageData(Chip8Emulator.WIDTH, Chip8Emulator.HEIGHT);
+
     // Initialize pixels array once
     const screenDataPtr = this.chip8.get_screen();
     this.pixels = new Uint8Array(wasm.memory.buffer, screenDataPtr, Chip8Emulator.WIDTH * Chip8Emulator.HEIGHT);
@@ -118,20 +130,28 @@ class Chip8Emulator {
   }
 
   public updateDisplay() {
-    // Clear canvas
-    this.ctx.fillStyle = '#000';
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    // Update ImageData directly from pixel buffer
+    for (let i = 0; i < this.pixels.length; i++) {
+      const pixelIndex = i * 4;
+      const color = this.pixels[i] ? 255 : 0; // 255 = white, 0 = black
 
-    this.ctx.fillStyle = '#ffffff'; // White pixels
-
-    for (let row = 0; row < Chip8Emulator.HEIGHT; row++) {
-      for (let col = 0; col < Chip8Emulator.WIDTH; col++) {
-        const idx = row * Chip8Emulator.WIDTH + col;
-        if (this.pixels[idx] === 1) {
-          this.ctx.fillRect(col * Chip8Emulator.SCALE, row * Chip8Emulator.SCALE, Chip8Emulator.SCALE, Chip8Emulator.SCALE);
-        }
-      }
+      this.imageData.data[pixelIndex] = color;     // Red
+      this.imageData.data[pixelIndex + 1] = color; // Green  
+      this.imageData.data[pixelIndex + 2] = color; // Blue
+      this.imageData.data[pixelIndex + 3] = 255;   // Alpha (always opaque)
     }
+
+    // Put image data on the small buffer canvas
+    this.bufferCtx.putImageData(this.imageData, 0, 0);
+
+    // Clear main canvas and scale up the buffer canvas
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.imageSmoothingEnabled = false; // Keep pixels crisp when scaling
+    this.ctx.drawImage(
+      this.bufferCanvas,
+      0, 0, Chip8Emulator.WIDTH, Chip8Emulator.HEIGHT,
+      0, 0, this.canvas.width, this.canvas.height
+    );
   }
 
   private mainLoop = (currentTime: number) => {
@@ -140,7 +160,9 @@ class Chip8Emulator {
       this.lastTime = currentTime;
 
       // CPU runs at browser refresh rate (usually 60Hz)
-      this.chip8.tick();
+      for (let i = 0; i < 10; i++) {
+        this.chip8.tick();
+      }
 
       // Timer updates (60Hz) - only decrement timers at 60Hz even if running faster
       if (currentTime - this.lastTimerUpdate >= this.timerCycleTime) {
