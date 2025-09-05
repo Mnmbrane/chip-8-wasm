@@ -177,40 +177,41 @@ class Chip8Emulator {
       try {
         const arrayBuffer = await file.arrayBuffer();
         const romData = new Uint8Array(arrayBuffer);
-        
+
         console.log(`Loading ROM: ${file.name} (${romData.length} bytes)`);
-        
-        // Reset the emulator first
+
+        // Stop execution and reset the emulator first
+        this.stopMainLoop();
         this.chip8.reset();
-        
+
         // Load ROM into memory starting at 0x200
         const ROM_START = 0x200;
         const maxRomSize = 0x1000 - ROM_START; // Available memory for ROM
-        
+
         if (romData.length > maxRomSize) {
           console.warn(`ROM too large (${romData.length} bytes). Truncating to ${maxRomSize} bytes.`);
         }
-        
+
         // Copy ROM data directly into WASM memory
         const bytesToCopy = Math.min(romData.length, maxRomSize);
         for (let i = 0; i < bytesToCopy; i++) {
           this.memory[ROM_START + i] = romData[i];
         }
-        
+
         console.log(`ROM loaded successfully: ${bytesToCopy} bytes at 0x${ROM_START.toString(16)}`);
-        
+
         // Clear the screen and update display
-        this.chip8.handle_opcode(0x00E0); // CLS - Clear screen
         this.updateDisplay();
-        
+
         // Start the main loop now that ROM is loaded
-        if (!this.isMainLoopRunning) {
-          this.startMainLoop();
-        }
-        
+        this.startMainLoop();
+
       } catch (error) {
         console.error('Error loading ROM:', error);
         alert('Failed to load ROM file');
+      } finally {
+        // Clear the input so the same file can be loaded again
+        romInput.value = '';
       }
     });
   }
@@ -259,8 +260,6 @@ class Chip8Emulator {
   }
 }
 
-let emulatorInstance: Chip8Emulator | null = null;
-
 function main() {
   // Prevent multiple instances
   if (globalEmulatorInstance) {
@@ -269,9 +268,7 @@ function main() {
   }
 
   const chip8 = Chip8.new();
-
-  // Create emulator instance - it will wait for ROM to be loaded
-  emulatorInstance = new Chip8Emulator(chip8);
+  const emulator = new Chip8Emulator(chip8);
 
   console.log("CHIP-8 Emulator ready. Load a ROM to start.");
 }

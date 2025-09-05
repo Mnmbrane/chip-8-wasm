@@ -186,6 +186,7 @@ impl Chip8 {
         let opcode = (self.memory[self.program_counter] as u16) << 8
             | self.memory[self.program_counter + 1] as u16;
         self.program_counter += 2;
+        console_log!("Opcode: 0x{:04x}", opcode);
         self.handle_opcode(opcode);
     }
 
@@ -308,6 +309,7 @@ impl Chip8 {
     fn display_sprite(&mut self, opcode: u16) {
         let bytes = opcode & 0xF;
         let (x, y) = (get_x(opcode), get_y(opcode));
+        console_log!("Displaying at {x},{y}");
 
         // Initialize collision flag to 0
         self.reg[0xF] = 0;
