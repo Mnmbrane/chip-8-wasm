@@ -161,6 +161,40 @@ body::before {
   overflow: hidden;
 }
 
+/* Dropdown select styling */
+select.rom-loader-label {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='%2300ff41' viewBox='0 0 16 16'%3e%3cpath d='m7.247 4.86-4.796 5.481c-.566.647-.106 1.659.753 1.659h9.592a1 1 0 0 0 .753-1.659l-4.796-5.48a1 1 0 0 0-1.506 0z'/%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+  padding-right: 40px;
+  min-width: 200px;
+}
+
+select.rom-loader-label:focus {
+  outline: none;
+  border-color: rgba(0, 255, 65, 0.8);
+  box-shadow: 
+    0 6px 20px rgba(0, 255, 65, 0.3),
+    inset 0 1px 1px rgba(255, 255, 255, 0.1);
+}
+
+select.rom-loader-label option {
+  background: #1a1a2e;
+  color: #00ff41;
+  padding: 8px 12px;
+  border: none;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+select.rom-loader-label option:hover {
+  background: #0f0f23;
+  color: #00ccff;
+}
+
 .title {
   font-family: 'Orbitron', monospace;
   font-size: 3.5rem;

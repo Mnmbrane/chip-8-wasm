@@ -308,16 +308,6 @@ impl Chip8 {
         let bytes = opcode & 0xF;
         let (reg_x, reg_y) = (self.reg[get_x(opcode)], self.reg[get_y(opcode)]);
 
-        console_log!(
-            "Drawing sprite: V{} = {}, V{} = {}, height = {}, index_reg = 0x{:03x}",
-            get_x(opcode),
-            reg_x,
-            get_y(opcode),
-            reg_y,
-            bytes,
-            self.index_reg
-        );
-
         // Initialize collision flag to 0
         self.reg[0xF] = 0;
 

@@ -110,6 +110,7 @@ class Chip8Emulator {
     this.setupKeyboardHandling();
     this.setupRomLoader();
     this.setupTestRomButton();
+    this.setupResetButton();
     // Don't start main loop until ROM is loaded
   }
 
@@ -299,6 +300,27 @@ class Chip8Emulator {
         // Reset the dropdown to default
         testRomSelect.value = '';
       }
+    });
+  }
+
+  private setupResetButton() {
+    const resetBtn = document.getElementById('reset-btn') as HTMLButtonElement;
+    if (!resetBtn) {
+      console.error('Reset button not found');
+      return;
+    }
+
+    resetBtn.addEventListener('click', () => {
+      // Stop the main loop
+      this.stopMainLoop();
+      
+      // Reset the emulator state
+      this.chip8.reset();
+      
+      // Clear and update display
+      this.updateDisplay();
+      
+      console.log('Emulator reset');
     });
   }
 
