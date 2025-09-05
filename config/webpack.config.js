@@ -37,6 +37,14 @@ module.exports = {
     new HtmlWebpackPlugin({
       template: path.resolve(__dirname, '../src/web/src/index.html'),
       filename: 'index.html'
+    }),
+    new CopyWebpackPlugin({
+      patterns: [
+        {
+          from: path.resolve(__dirname, '../test_roms'),
+          to: 'test_roms'
+        }
+      ]
     })
   ],
 };

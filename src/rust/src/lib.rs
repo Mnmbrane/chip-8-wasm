@@ -148,14 +148,14 @@ impl Chip8 {
     // true if collision otherwise false
     fn xor_pixel(&mut self, x: usize, y: usize, val: u8) -> bool {
         // 64 x 32: index = (row * width) + column = (y * FRAME_BUF_WIDTH) + x
-        let index: usize = (y * FRAME_BUF_WIDTH) + x;
+        let wrapped_x = x.rem_euclid(FRAME_BUF_WIDTH);
+        let wrapped_y = y.rem_euclid(FRAME_BUF_HEIGHT);
+        let index: usize = (wrapped_y * FRAME_BUF_WIDTH) + wrapped_x;
         let start_val = self.frame_buffer[index];
 
-        if index < FRAME_BUF_MAX {
-            self.frame_buffer[index] ^= val;
-            if start_val == 1 && self.frame_buffer[index] == 0 {
-                return true;
-            }
+        self.frame_buffer[index] ^= val;
+        if start_val == 1 && self.frame_buffer[index] == 0 {
+            return true;
         }
         false
     }
@@ -308,6 +308,16 @@ impl Chip8 {
         let bytes = opcode & 0xF;
         let (reg_x, reg_y) = (self.reg[get_x(opcode)], self.reg[get_y(opcode)]);
 
+        console_log!(
+            "Drawing sprite: V{} = {}, V{} = {}, height = {}, index_reg = 0x{:03x}",
+            get_x(opcode),
+            reg_x,
+            get_y(opcode),
+            reg_y,
+            bytes,
+            self.index_reg
+        );
+
         // Initialize collision flag to 0
         self.reg[0xF] = 0;
 
@@ -318,6 +328,7 @@ impl Chip8 {
 
         for mem_index in (self.index_reg as usize)..(self.index_reg + bytes) as usize {
             let mut pixel_x = reg_x;
+
             for i in 0..8 {
                 // Extract bit from left to right (MSB to LSB)
                 let bit = (self.memory[mem_index] >> (7 - i)) & 1;
@@ -336,12 +347,16 @@ impl Chip8 {
     fn skip_if_key_state(&mut self, opcode: u16) {
         let x = get_x(opcode);
         // pressed
-        if opcode & 0xFF == 0x9E && self.keys[self.reg[x] as usize] == 1 {
-            self.program_counter += 2;
+        if opcode & 0xFF == 0x9E {
+            if self.keys[self.reg[x] as usize] == 1 {
+                self.program_counter += 2;
+            }
         }
         // not pressed
-        else if opcode & 0xFF == 0xA1 && self.keys[self.reg[x] as usize] == 0 {
-            self.program_counter += 2;
+        else if opcode & 0xFF == 0xA1 {
+            if self.keys[self.reg[x] as usize] == 0 {
+                self.program_counter += 2;
+            }
         } else {
             unhandled_opcode_panic(opcode);
         }

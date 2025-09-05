@@ -14,8 +14,8 @@ const regResetValue: number = -1;
   }
 };
 
-// Export stop_main_loop function for WASM to call
-(window as any).wait_for_key_press = function(reg: number) {
+// Export wait_for_keypress function for WASM to call
+(window as any).wait_for_keypress = function(reg: number) {
   if (globalEmulatorInstance) {
     globalEmulatorInstance.stopMainLoop();
     globalEmulatorInstance.saveToReg = reg;
@@ -109,6 +109,7 @@ class Chip8Emulator {
     if (screenContainer) screenContainer.appendChild(this.canvas);
     this.setupKeyboardHandling();
     this.setupRomLoader();
+    this.setupTestRomButton();
     // Don't start main loop until ROM is loaded
   }
 
@@ -244,6 +245,59 @@ class Chip8Emulator {
       } finally {
         // Clear the input so the same file can be loaded again
         romInput.value = '';
+      }
+    });
+  }
+
+  private setupTestRomButton() {
+    const testRomSelect = document.getElementById('test-rom-select') as HTMLSelectElement;
+    if (!testRomSelect) {
+      console.error('Test ROM select not found');
+      return;
+    }
+
+    testRomSelect.addEventListener('change', async (event) => {
+      const selectedRom = (event.target as HTMLSelectElement).value;
+      if (!selectedRom) return;
+
+      try {
+        const response = await fetch(`./test_roms/${selectedRom}`);
+        if (!response.ok) {
+          throw new Error(`Failed to load test ROM: ${selectedRom}`);
+        }
+        
+        const arrayBuffer = await response.arrayBuffer();
+        const romData = new Uint8Array(arrayBuffer);
+
+        console.log(`Loading test ROM: ${selectedRom} (${romData.length} bytes)`);
+
+        // Stop execution and reset the emulator first
+        this.stopMainLoop();
+        this.chip8.reset();
+
+        // Load ROM into memory starting at 0x200
+        const ROM_START = 0x200;
+        const maxRomSize = 0x1000 - ROM_START;
+
+        const bytesToCopy = Math.min(romData.length, maxRomSize);
+        for (let i = 0; i < bytesToCopy; i++) {
+          this.memory[ROM_START + i] = romData[i];
+        }
+
+        console.log(`Test ROM loaded successfully: ${bytesToCopy} bytes at 0x${ROM_START.toString(16)}`);
+
+        // Clear the screen and update display
+        this.updateDisplay();
+
+        // Start the main loop now that ROM is loaded
+        this.startMainLoop();
+
+      } catch (error) {
+        console.error('Error loading test ROM:', error);
+        alert(`Failed to load test ROM: ${selectedRom}`);
+      } finally {
+        // Reset the dropdown to default
+        testRomSelect.value = '';
       }
     });
   }
