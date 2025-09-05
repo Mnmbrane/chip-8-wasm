@@ -358,7 +358,10 @@ impl Chip8 {
 
         match op {
             0x07 => self.reg[x] = self.delay_timer,
-            0x0A => wait_for_keypress(x),
+            0x0A => {
+                console_log!("waiting for 0x{:02x} index={}", self.reg[x], x);
+                wait_for_keypress(self.reg[x] as usize);
+            }
             0x15 => self.delay_timer = self.reg[x],
             0x18 => self.sound_timer = self.reg[x],
             0x1E => self.index_reg += self.reg[x] as u16,
