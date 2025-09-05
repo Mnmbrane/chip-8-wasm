@@ -4,17 +4,18 @@ import '../style/main.css';
 
 // Global emulator instance for WASM callback
 let globalEmulatorInstance: Chip8Emulator | null = null;
+let instanceCounter = 0;
 const regResetValue: number = -1;
 
 // Export update_canvas function for WASM to call
-(window as any).update_canvas = function () {
+(window as any).update_canvas = function() {
   if (globalEmulatorInstance) {
     globalEmulatorInstance.updateDisplay();
   }
 };
 
 // Export stop_main_loop function for WASM to call
-(window as any).wait_for_key_press = function (reg: number) {
+(window as any).wait_for_key_press = function(reg: number) {
   if (globalEmulatorInstance) {
     globalEmulatorInstance.stopMainLoop();
     globalEmulatorInstance.saveToReg = reg;
@@ -22,7 +23,7 @@ const regResetValue: number = -1;
 };
 
 // Export play_sound function for WASM to call
-(window as any).play_sound = function () {
+(window as any).play_sound = function() {
   if (globalEmulatorInstance) {
     globalEmulatorInstance.playSound();
   }
@@ -46,6 +47,8 @@ class Chip8Emulator {
   private lastTimerUpdate = 0;
   private isMainLoopRunning = false;
   public saveToReg = regResetValue;
+  private instanceId: number;
+  private animationFrameId: number | null = null;
 
   static initializeDimensions(chip8: Chip8) {
     if (!Chip8Emulator.WIDTH || !Chip8Emulator.HEIGHT) {
@@ -63,6 +66,8 @@ class Chip8Emulator {
   constructor(chip8: Chip8) {
     // Initialize static dimensions if not already done
     Chip8Emulator.initializeDimensions(chip8);
+
+    this.instanceId = ++instanceCounter;
 
     // Set global instance for WASM callback
     globalEmulatorInstance = this;
@@ -100,7 +105,6 @@ class Chip8Emulator {
 
     canvas.width = Chip8Emulator.WIDTH * Chip8Emulator.SCALE;
     canvas.height = Chip8Emulator.HEIGHT * Chip8Emulator.SCALE;
-    console.log(`Canvas created: ${canvas.width}×${canvas.height} (${Chip8Emulator.WIDTH}×${Chip8Emulator.HEIGHT} logical pixels)`);
     return canvas;
   }
 
@@ -131,7 +135,6 @@ class Chip8Emulator {
   }
 
   private mainLoop = (currentTime: number) => {
-
     if (this.isMainLoopRunning) {
       const deltaTime = currentTime - this.lastTime;
       this.lastTime = currentTime;
@@ -144,15 +147,18 @@ class Chip8Emulator {
         // Timer decrements happen in chip8.tick()
         this.lastTimerUpdate = currentTime;
       }
-      requestAnimationFrame(this.mainLoop);
+      this.animationFrameId = requestAnimationFrame(this.mainLoop);
     }
   }
 
   private startMainLoop() {
+    if (this.isMainLoopRunning) {
+      return;
+    }
     this.lastTime = performance.now();
     this.lastTimerUpdate = this.lastTime;
     this.isMainLoopRunning = true;
-    requestAnimationFrame(this.mainLoop);
+    this.animationFrameId = requestAnimationFrame(this.mainLoop);
   }
 
   public playSound() {
@@ -161,6 +167,10 @@ class Chip8Emulator {
 
   public stopMainLoop() {
     this.isMainLoopRunning = false;
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
   }
 
   private setupRomLoader() {
@@ -261,16 +271,19 @@ class Chip8Emulator {
 }
 
 function main() {
+  // Prevent multiple runs of main using a global window property
+  if ((window as any).chip8MainHasRun) {
+    return;
+  }
+  (window as any).chip8MainHasRun = true;
+
   // Prevent multiple instances
   if (globalEmulatorInstance) {
-    console.log('Emulator already running');
     return;
   }
 
   const chip8 = Chip8.new();
   const emulator = new Chip8Emulator(chip8);
-
-  console.log("CHIP-8 Emulator ready. Load a ROM to start.");
 }
 
 main();

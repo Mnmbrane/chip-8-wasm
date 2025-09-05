@@ -147,8 +147,8 @@ impl Chip8 {
     }
     // true if collision otherwise false
     fn xor_pixel(&mut self, x: usize, y: usize, val: u8) -> bool {
-        // 64 x 32
-        let index: usize = (x * FRAME_BUF_WIDTH as usize) + y;
+        // 64 x 32: index = (row * width) + column = (y * FRAME_BUF_WIDTH) + x
+        let index: usize = (y * FRAME_BUF_WIDTH) + x;
         let start_val = self.frame_buffer[index];
 
         if index < FRAME_BUF_MAX {
@@ -186,16 +186,14 @@ impl Chip8 {
         let opcode = (self.memory[self.program_counter] as u16) << 8
             | self.memory[self.program_counter + 1] as u16;
         self.program_counter += 2;
-        console_log!("Opcode: 0x{:04x}", opcode);
         self.handle_opcode(opcode);
     }
 
     pub fn tick(&mut self) {
         self.execute_instructions();
-        //delay_and_sound_timer.tick() => {
-        //    if self.delay_counter > 0 {
-        //        self.delay_counter -= 1;
-        //    }
+        if self.delay_timer > 0 {
+            self.delay_timer -= 1;
+        }
 
         //    if self.sound_counter > 0 {
         //        self.sound_counter -= 1;
@@ -308,34 +306,29 @@ impl Chip8 {
     // 0xD000
     fn display_sprite(&mut self, opcode: u16) {
         let bytes = opcode & 0xF;
-        let (x, y) = (get_x(opcode), get_y(opcode));
-        console_log!("Displaying at {x},{y}");
+        let (reg_x, reg_y) = (self.reg[get_x(opcode)], self.reg[get_y(opcode)]);
 
         // Initialize collision flag to 0
         self.reg[0xF] = 0;
 
-        // (x, y) starting point (0, 0) as an example
-        // we work our way backwards for a byte so we decrement
-        // y from y+8..y+0.
-        // incrementing to the next sprite data means to
-        // increment x
-        let mut pixel_x = x;
-        let mut pixel_y;
+        // Each byte represents a row of 8 pixels
+        // Outer loop: rows (y-direction)
+        // Inner loop: columns within each row (x-direction)
+        let mut pixel_y = reg_y;
 
         for mem_index in (self.index_reg as usize)..(self.index_reg + bytes) as usize {
-            pixel_y = y;
+            let mut pixel_x = reg_x;
             for i in 0..8 {
-                // we start at the least significant bit
+                // Extract bit from left to right (MSB to LSB)
                 let bit = (self.memory[mem_index] >> (7 - i)) & 1;
 
-                // x represents the co
-                if self.xor_pixel(pixel_x, pixel_y, bit) {
+                if self.xor_pixel(pixel_x as usize, pixel_y as usize, bit) {
                     self.reg[0xF] = 1;
                 }
 
-                pixel_y += 1;
+                pixel_x += 1;
             }
-            pixel_x += 1;
+            pixel_y += 1;
         }
         update_canvas();
     }
