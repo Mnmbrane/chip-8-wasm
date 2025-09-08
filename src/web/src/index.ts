@@ -132,7 +132,7 @@ class Chip8Emulator {
     this.lastTime = currentTime;
 
     // CPU runs at browser refresh rate (usually 60Hz)
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 7; i++) {
       this.chip8.tick();
     }
 
@@ -190,6 +190,9 @@ class Chip8Emulator {
         // Start the main loop now that ROM is loaded
         this.startMainLoop();
 
+        // Blur focus from any UI elements to prevent key conflicts
+        (document.activeElement as HTMLElement)?.blur();
+
       } catch (error) {
         console.error('Error loading ROM:', error);
         alert('Failed to load ROM file');
@@ -230,6 +233,9 @@ class Chip8Emulator {
 
         // Start the main loop now that ROM is loaded
         this.startMainLoop();
+
+        // Blur focus from any UI elements to prevent key conflicts
+        (document.activeElement as HTMLElement)?.blur();
 
       } catch (error) {
         console.error('Error loading test ROM:', error);
