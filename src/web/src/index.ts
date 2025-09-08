@@ -5,20 +5,11 @@ import '../style/main.css';
 // Global emulator instance for WASM callback
 let globalEmulatorInstance: Chip8Emulator | null = null;
 let instanceCounter = 0;
-const regResetValue: number = -1;
 
 // Export update_canvas function for WASM to call
 (window as any).update_canvas = function() {
   if (globalEmulatorInstance) {
     globalEmulatorInstance.updateDisplay();
-  }
-};
-
-// Export wait_for_keypress function for WASM to call
-(window as any).wait_for_keypress = function(reg: number) {
-  if (globalEmulatorInstance) {
-    globalEmulatorInstance.stopMainLoop();
-    globalEmulatorInstance.saveToReg = reg;
   }
 };
 
@@ -39,20 +30,14 @@ class Chip8Emulator {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private pixels: Uint8Array;
-  private memory: Uint8Array;
-  private reg: Uint8Array;
-  private keys: Uint8Array;
   private imageData: ImageData;
   private bufferCanvas: HTMLCanvasElement;
   private bufferCtx: CanvasRenderingContext2D;
   private lastTime = 0;
   private timerCycleTime = 1000 / 60; // 60Hz timers
   private lastTimerUpdate = 0;
-  private isMainLoopRunning = false;
-  public saveToReg = regResetValue;
   private instanceId: number;
   private animationFrameId: number | null = null;
-  private isRomLoaded = false;
 
   static initializeDimensions(chip8: Chip8) {
     if (!Chip8Emulator.WIDTH || !Chip8Emulator.HEIGHT) {
@@ -100,12 +85,6 @@ class Chip8Emulator {
     // Initialize pixels array once
     const screenDataPtr = this.chip8.get_screen();
     this.pixels = new Uint8Array(wasm.memory.buffer, screenDataPtr, Chip8Emulator.WIDTH * Chip8Emulator.HEIGHT);
-    const memoryPtr = this.chip8.get_memory();
-    this.memory = new Uint8Array(wasm.memory.buffer, memoryPtr, 0x1000);
-    const regPtr = this.chip8.get_registers();
-    this.reg = new Uint8Array(wasm.memory.buffer, regPtr, 16);
-    const keyPtr = this.chip8.get_keys();
-    this.keys = new Uint8Array(wasm.memory.buffer, keyPtr, 16);
 
     if (screenContainer) screenContainer.appendChild(this.canvas);
     this.setupKeyboardHandling();
@@ -149,31 +128,25 @@ class Chip8Emulator {
   }
 
   private mainLoop = (currentTime: number) => {
-    if (this.isMainLoopRunning) {
-      const deltaTime = currentTime - this.lastTime;
-      this.lastTime = currentTime;
+    const deltaTime = currentTime - this.lastTime;
+    this.lastTime = currentTime;
 
-      // CPU runs at browser refresh rate (usually 60Hz)
-      for (let i = 0; i < 10; i++) {
-        this.chip8.tick();
-      }
-
-      // Timer updates (60Hz) - only decrement timers at 60Hz even if running faster
-      if (currentTime - this.lastTimerUpdate >= this.timerCycleTime) {
-        // Timer decrements happen in chip8.tick()
-        this.lastTimerUpdate = currentTime;
-      }
-      this.animationFrameId = requestAnimationFrame(this.mainLoop);
+    // CPU runs at browser refresh rate (usually 60Hz)
+    for (let i = 0; i < 10; i++) {
+      this.chip8.tick();
     }
+
+    // Timer updates (60Hz) - only decrement timers at 60Hz even if running faster
+    if (currentTime - this.lastTimerUpdate >= this.timerCycleTime) {
+      // Timer decrements happen in chip8.tick()
+      this.lastTimerUpdate = currentTime;
+    }
+    this.animationFrameId = requestAnimationFrame(this.mainLoop);
   }
 
   private startMainLoop() {
-    if (this.isMainLoopRunning || !this.isRomLoaded) {
-      return;
-    }
     this.lastTime = performance.now();
     this.lastTimerUpdate = this.lastTime;
-    this.isMainLoopRunning = true;
     this.animationFrameId = requestAnimationFrame(this.mainLoop);
   }
 
@@ -182,7 +155,6 @@ class Chip8Emulator {
   }
 
   public stopMainLoop() {
-    this.isMainLoopRunning = false;
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;
@@ -210,24 +182,7 @@ class Chip8Emulator {
         this.stopMainLoop();
         this.chip8.reset();
 
-        // Load ROM into memory starting at 0x200
-        const ROM_START = 0x200;
-        const maxRomSize = 0x1000 - ROM_START; // Available memory for ROM
-
-        if (romData.length > maxRomSize) {
-          console.warn(`ROM too large (${romData.length} bytes). Truncating to ${maxRomSize} bytes.`);
-        }
-
-        // Copy ROM data directly into WASM memory
-        const bytesToCopy = Math.min(romData.length, maxRomSize);
-        for (let i = 0; i < bytesToCopy; i++) {
-          this.memory[ROM_START + i] = romData[i];
-        }
-
-        console.log(`ROM loaded successfully: ${bytesToCopy} bytes at 0x${ROM_START.toString(16)}`);
-
-        // Mark ROM as loaded
-        this.isRomLoaded = true;
+        this.chip8.load_rom(romData);
 
         // Clear the screen and update display
         this.updateDisplay();
@@ -261,29 +216,14 @@ class Chip8Emulator {
         if (!response.ok) {
           throw new Error(`Failed to load test ROM: ${selectedRom}`);
         }
-
         const arrayBuffer = await response.arrayBuffer();
         const romData = new Uint8Array(arrayBuffer);
-
-        console.log(`Loading test ROM: ${selectedRom} (${romData.length} bytes)`);
 
         // Stop execution and reset the emulator first
         this.stopMainLoop();
         this.chip8.reset();
 
-        // Load ROM into memory starting at 0x200
-        const ROM_START = 0x200;
-        const maxRomSize = 0x1000 - ROM_START;
-
-        const bytesToCopy = Math.min(romData.length, maxRomSize);
-        for (let i = 0; i < bytesToCopy; i++) {
-          this.memory[ROM_START + i] = romData[i];
-        }
-
-        console.log(`Test ROM loaded successfully: ${bytesToCopy} bytes at 0x${ROM_START.toString(16)}`);
-
-        // Mark ROM as loaded
-        this.isRomLoaded = true;
+        this.chip8.load_rom(romData);
 
         // Clear the screen and update display
         this.updateDisplay();
@@ -315,9 +255,6 @@ class Chip8Emulator {
       // Reset the emulator state
       this.chip8.reset();
 
-      // Mark ROM as not loaded
-      this.isRomLoaded = false;
-
       // Clear and update display
       this.updateDisplay();
 
@@ -334,42 +271,29 @@ class Chip8Emulator {
     // A 0 B F    ->    Z X C V
 
     const keyMap: { [key: string]: number } = {
-      '1': 0x0, '2': 0x1, '3': 0x2, '4': 0x3,
-      'q': 0x4, 'w': 0x5, 'e': 0x6, 'r': 0x7,
-      'a': 0x8, 's': 0x9, 'd': 0xA, 'f': 0xB,
-      'z': 0xC, 'x': 0xD, 'c': 0xE, 'v': 0xF
+      '1': 0x1, '2': 0x2, '3': 0x3, '4': 0xC,
+      'q': 0x4, 'w': 0x5, 'e': 0x6, 'r': 0xD,
+      'a': 0x7, 's': 0x8, 'd': 0x9, 'f': 0xE,
+      'z': 0xA, 'x': 0x0, 'c': 0xB, 'v': 0xF
     };
 
     document.addEventListener('keydown', (event) => {
       const key = event.key.toLowerCase();
-      if (keyMap.hasOwnProperty(key) && this.isRomLoaded) {
+      if (keyMap.hasOwnProperty(key) && !event.repeat) {
         event.preventDefault();
-
-        // save to the register 
-        if (!this.isMainLoopRunning && this.keys[keyMap[key]] === 0) {
-          this.reg[this.saveToReg] = keyMap[key];
-          this.keys[keyMap[key]] = 1;
-          this.saveToReg = regResetValue;
-          this.startMainLoop();
-        }
-        else if (this.keys[keyMap[key]] === 0) {
-          console.log(`Holding down key ${key} (value: ${keyMap[key]}) reg[${this.saveToReg}]`);
-          this.reg[this.saveToReg] = keyMap[key];
-          this.keys[keyMap[key]] = 1;
-        }
-      }
-      // test key to halt
-      else if (key === 'b') {
-        this.stopMainLoop();
+        event.stopImmediatePropagation();
+        this.chip8.set_key(keyMap[key]);
+        console.log(`Setting key ${key}`)
       }
     });
 
     document.addEventListener('keyup', (event) => {
       const key = event.key.toLowerCase();
-      if (keyMap.hasOwnProperty(key) && this.isRomLoaded) {
+      if (keyMap.hasOwnProperty(key)) {
         event.preventDefault();
-        this.keys[keyMap[key]] = 0;
-        console.log(" {key}");
+        event.stopImmediatePropagation();
+        this.chip8.unset_key(keyMap[key])
+        console.log(`Un-setting key ${key}`)
       }
     });
   }

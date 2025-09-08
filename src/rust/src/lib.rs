@@ -13,10 +13,12 @@ const FRAME_BUF_WIDTH: usize = 64;
 const FRAME_BUF_HEIGHT: usize = 32;
 
 const MEM_MAX: usize = 0x1000;
+const START_OF_ROM: usize = 0x200;
+const START_OF_FONT: usize = 0x50;
+const MAX_ROM_SIZE: usize = MEM_MAX - START_OF_ROM;
+
 const REG_MAX: usize = 16;
 const FRAME_BUF_MAX: usize = FRAME_BUF_HEIGHT * FRAME_BUF_WIDTH;
-const NUM_OF_KEYS: usize = 16;
-const START_OF_FONT: usize = 0x50;
 
 type Pixel = u8;
 
@@ -45,16 +47,10 @@ fn get_nnn(opcode: u16) -> u16 {
 #[wasm_bindgen]
 extern "C" {
     fn update_canvas();
-    fn wait_for_keypress(x: usize);
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 fn update_canvas() {
-    // No-op for native/test builds
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn wait_for_keypress(x: usize) {
     // No-op for native/test builds
 }
 
@@ -79,10 +75,15 @@ pub struct Chip8 {
 
     rand_rng: SmallRng,
 
-    keys: [u8; NUM_OF_KEYS],
+    keys: u16, // bitmask
 
     delay_timer: u8,
     sound_timer: u8,
+
+    is_waiting_for_key: bool,
+    reg_index_key_waiting: usize,
+
+    is_rom_loaded: bool,
 }
 
 #[wasm_bindgen]
@@ -98,14 +99,19 @@ impl Chip8 {
 
             frame_buffer: [0; FRAME_BUF_MAX],
 
-            program_counter: 0x200,
+            program_counter: START_OF_ROM,
 
             rand_rng: SmallRng::from_entropy(),
 
-            keys: [0; NUM_OF_KEYS],
+            keys: 0,
 
             delay_timer: 0,
             sound_timer: 0,
+
+            is_waiting_for_key: false,
+            reg_index_key_waiting: 0,
+
+            is_rom_loaded: false,
         };
 
         // Load font data into memory starting at 0x50
@@ -127,15 +133,26 @@ impl Chip8 {
         chip8
     }
 
+    pub fn load_rom(&mut self, rom: &[u8]) {
+        if rom.len() <= MAX_ROM_SIZE {
+            let rom_end = START_OF_ROM + rom.len();
+            self.memory[START_OF_ROM..rom_end].copy_from_slice(rom);
+            self.is_rom_loaded = true;
+        }
+    }
+
     pub fn reset(&mut self) {
         self.memory[0x200..MEM_MAX].fill(0);
         self.stack.clear();
         self.frame_buffer.fill(0);
         self.index_reg = 0;
         self.program_counter = 0x200;
-        self.keys.fill(0);
+        self.keys = 0;
         self.delay_timer = 0;
         self.sound_timer = 0;
+        self.is_waiting_for_key = false;
+        self.reg_index_key_waiting = 0;
+        self.is_rom_loaded = false;
     }
 
     pub fn get_width(&self) -> usize {
@@ -190,15 +207,17 @@ impl Chip8 {
     }
 
     pub fn tick(&mut self) {
-        self.execute_instructions();
-        if self.delay_timer > 0 {
-            self.delay_timer -= 1;
-        }
+        if !self.is_waiting_for_key && self.is_rom_loaded {
+            self.execute_instructions();
+            if self.delay_timer > 0 {
+                self.delay_timer -= 1;
+            }
 
-        //    if self.sound_counter > 0 {
-        //        self.sound_counter -= 1;
-        //    }
-        //}
+            //    if self.sound_counter > 0 {
+            //        self.sound_counter -= 1;
+            //    }
+            //}
+        }
     }
     // 0x0000
     fn sys_addr(&mut self, opcode: u16) {
@@ -336,15 +355,16 @@ impl Chip8 {
     // 0xE000
     fn skip_if_key_state(&mut self, opcode: u16) {
         let x = get_x(opcode);
+        let is_pressed = self.keys & (1 << self.reg[x]) != 0;
         // pressed
         if opcode & 0xFF == 0x9E {
-            if self.keys[self.reg[x] as usize] == 1 {
+            if is_pressed {
                 self.program_counter += 2;
             }
         }
         // not pressed
         else if opcode & 0xFF == 0xA1 {
-            if self.keys[self.reg[x] as usize] == 0 {
+            if !is_pressed {
                 self.program_counter += 2;
             }
         } else {
@@ -359,8 +379,7 @@ impl Chip8 {
         match op {
             0x07 => self.reg[x] = self.delay_timer,
             0x0A => {
-                console_log!("waiting for 0x{:02x} index={}", self.reg[x], x);
-                wait_for_keypress(self.reg[x] as usize);
+                self.is_waiting_for_key = true;
             }
             0x15 => self.delay_timer = self.reg[x],
             0x18 => self.sound_timer = self.reg[x],
@@ -394,12 +413,20 @@ impl Chip8 {
         self.memory.as_ptr()
     }
 
-    pub fn get_registers(&self) -> *const u8 {
-        self.reg.as_ptr()
+    pub fn get_keys(&self) -> u16 {
+        self.keys
     }
 
-    pub fn get_keys(&self) -> *const u8 {
-        self.reg.as_ptr()
+    pub fn set_key(&mut self, index: u8) {
+        self.keys |= 1 << index as u16;
+        if self.is_waiting_for_key {
+            self.is_waiting_for_key = false;
+            self.reg[self.reg_index_key_waiting] = index;
+        }
+    }
+
+    pub fn unset_key(&mut self, index: u8) {
+        self.keys &= !(1 << index as u16);
     }
 }
 
