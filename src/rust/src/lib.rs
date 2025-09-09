@@ -47,12 +47,15 @@ fn get_nnn(opcode: u16) -> u16 {
 #[wasm_bindgen]
 extern "C" {
     fn update_canvas();
+    fn play_beep();
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 fn update_canvas() {
     // No-op for native/test builds
 }
+#[cfg(not(target_arch = "wasm32"))]
+fn play_beep() {}
 
 #[wasm_bindgen]
 pub struct Chip8 {
@@ -213,10 +216,10 @@ impl Chip8 {
                 self.delay_timer -= 1;
             }
 
-            //    if self.sound_counter > 0 {
-            //        self.sound_counter -= 1;
-            //    }
-            //}
+            if self.sound_timer > 0 {
+                self.sound_timer -= 1;
+                play_beep();
+            }
         }
     }
     // 0x0000
