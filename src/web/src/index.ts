@@ -243,7 +243,13 @@ function populateCurrentKeyMappings() {
   });
 }
 
+// Track if event listeners are already set up
+let popupEventListenersSetup = false;
+
 function setupPopupEventHandlers() {
+  // Only setup once
+  if (popupEventListenersSetup) return;
+  
   const overlay = document.getElementById('key-remap-overlay');
   const closeBtn = document.getElementById('popup-close-btn');
   const cancelBtn = document.getElementById('popup-cancel-btn');
@@ -287,6 +293,8 @@ function setupPopupEventHandlers() {
       closePopup();
     });
   }
+
+  popupEventListenersSetup = true;
 }
 
 function applyKeyMapping() {
