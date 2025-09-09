@@ -235,11 +235,23 @@ function populateCurrentKeyMappings() {
     reverseMap[value] = key;
   });
 
-  // Populate input fields with current mappings
+  // Populate input fields with current mappings and add blur handlers
   const inputs = document.querySelectorAll('#key-grid input');
   inputs.forEach((input) => {
-    const chip8Value = parseInt((input as HTMLInputElement).dataset.chip8Value!);
-    (input as HTMLInputElement).value = reverseMap[chip8Value] || '';
+    const inputElement = input as HTMLInputElement;
+    const chip8Value = parseInt(inputElement.dataset.chip8Value!);
+    const originalValue = reverseMap[chip8Value] || '';
+    inputElement.value = originalValue;
+
+    // Store original value as data attribute
+    inputElement.dataset.originalValue = originalValue;
+
+    // Add blur handler to revert to original if empty
+    inputElement.addEventListener('blur', function() {
+      if (this.value.trim() === '') {
+        this.value = this.dataset.originalValue || '';
+      }
+    });
   });
 }
 
