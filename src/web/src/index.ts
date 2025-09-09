@@ -191,6 +191,135 @@ function setupResetButton() {
   });
 }
 
+// Global key mapping
+let globalKeyMap: { [key: string]: number } = {
+  '1': 0x1, '2': 0x2, '3': 0x3, '4': 0xC,
+  'q': 0x4, 'w': 0x5, 'e': 0x6, 'r': 0xD,
+  'a': 0x7, 's': 0x8, 'd': 0x9, 'f': 0xE,
+  'z': 0xA, 'x': 0x0, 'c': 0xB, 'v': 0xF
+};
+
+function setupRemapKeysButton() {
+  const remapBtn = document.getElementById('remap-keys-btn') as HTMLButtonElement;
+  if (!remapBtn) {
+    console.error('Remap keys button not found');
+    return;
+  }
+
+  remapBtn.addEventListener('click', () => {
+    openKeyRemapPopup();
+  });
+}
+
+function openKeyRemapPopup() {
+  const overlay = document.getElementById('key-remap-overlay');
+  if (!overlay) {
+    console.error('Key remap overlay not found');
+    return;
+  }
+
+  // Populate current values in the inputs
+  populateCurrentKeyMappings();
+
+  // Show the popup
+  overlay.style.display = 'flex';
+
+  // Set up event handlers
+  setupPopupEventHandlers();
+}
+
+function populateCurrentKeyMappings() {
+  // Create reverse mapping (chip8 value -> keyboard key)
+  const reverseMap: { [chip8Value: number]: string } = {};
+  Object.entries(globalKeyMap).forEach(([key, value]) => {
+    reverseMap[value] = key;
+  });
+
+  // Populate input fields with current mappings
+  const inputs = document.querySelectorAll('#key-grid input');
+  inputs.forEach((input) => {
+    const chip8Value = parseInt((input as HTMLInputElement).dataset.chip8Value!);
+    (input as HTMLInputElement).value = reverseMap[chip8Value] || '';
+  });
+}
+
+function setupPopupEventHandlers() {
+  const overlay = document.getElementById('key-remap-overlay');
+  const closeBtn = document.getElementById('popup-close-btn');
+  const cancelBtn = document.getElementById('popup-cancel-btn');
+  const applyBtn = document.getElementById('popup-apply-btn');
+
+  const closePopup = () => {
+    if (overlay) overlay.style.display = 'none';
+    document.removeEventListener('keydown', handleEscKey);
+  };
+
+  const handleEscKey = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      closePopup();
+    }
+  };
+
+  // Close button
+  if (closeBtn) {
+    closeBtn.addEventListener('click', closePopup);
+  }
+
+  // Cancel button
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', closePopup);
+  }
+
+  // Click overlay to close
+  if (overlay) {
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closePopup();
+    });
+  }
+
+  // ESC key
+  document.addEventListener('keydown', handleEscKey);
+
+  // Apply button
+  if (applyBtn) {
+    applyBtn.addEventListener('click', () => {
+      applyKeyMapping();
+      closePopup();
+    });
+  }
+}
+
+function applyKeyMapping() {
+  const inputs = document.querySelectorAll('#key-grid input') as NodeListOf<HTMLInputElement>;
+  const newKeyMap: { [key: string]: number } = {};
+  const usedKeys = new Set<string>();
+
+  // Collect all mappings and check for duplicates
+  let hasError = false;
+  inputs.forEach((input) => {
+    const key = input.value.toLowerCase().trim();
+    const chip8Value = parseInt(input.dataset.chip8Value!);
+
+    if (key) {
+      if (usedKeys.has(key)) {
+        alert(`Key '${key}' is mapped to multiple CHIP-8 keys. Each key can only be used once.`);
+        hasError = true;
+        return;
+      }
+      usedKeys.add(key);
+      newKeyMap[key] = chip8Value;
+    }
+  });
+
+  if (hasError) return;
+
+  // Update the global key mapping
+  globalKeyMap = { ...newKeyMap };
+
+  console.log('Key mapping updated:', globalKeyMap);
+  alert('Key mapping applied successfully!');
+}
+
 function playBeep(duration = 200, frequency = 400, volume = 0.5) {
   // Create AudioContext on first use (requires user gesture)
   if (!audioContext) {
@@ -227,29 +356,22 @@ function setupKeyboardHandling() {
   // 7 8 9 E    ->    A S D F
   // A 0 B F    ->    Z X C V
 
-  const keyMap: { [key: string]: number } = {
-    '1': 0x1, '2': 0x2, '3': 0x3, '4': 0xC,
-    'q': 0x4, 'w': 0x5, 'e': 0x6, 'r': 0xD,
-    'a': 0x7, 's': 0x8, 'd': 0x9, 'f': 0xE,
-    'z': 0xA, 'x': 0x0, 'c': 0xB, 'v': 0xF
-  };
-
   document.addEventListener('keydown', (event) => {
     const key = event.key.toLowerCase();
-    if (keyMap.hasOwnProperty(key) && !event.repeat) {
+    if (globalKeyMap.hasOwnProperty(key) && !event.repeat) {
       event.preventDefault();
       event.stopImmediatePropagation();
-      chip8.set_key(keyMap[key]);
+      chip8.set_key(globalKeyMap[key]);
       console.log(`Setting key ${key}`)
     }
   });
 
   document.addEventListener('keyup', (event) => {
     const key = event.key.toLowerCase();
-    if (keyMap.hasOwnProperty(key)) {
+    if (globalKeyMap.hasOwnProperty(key)) {
       event.preventDefault();
       event.stopImmediatePropagation();
-      chip8.unset_key(keyMap[key])
+      chip8.unset_key(globalKeyMap[key])
       console.log(`Un-setting key ${key}`)
     }
   });
@@ -274,6 +396,7 @@ function main() {
   setupKeyboardHandling();
   setupRomButtons();
   setupResetButton();
+  setupRemapKeysButton();
 
   startMainLoop();
   // Don't start main loop until ROM is loaded

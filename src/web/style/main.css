@@ -333,3 +333,157 @@ canvas {
 .title:hover {
   animation: glitch 0.3s, gradient-shift 3s ease-in-out infinite;
 }
+
+/* Key Remapping Popup */
+.popup-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(5px);
+}
+
+.popup-container {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  border: 2px solid #00ff41;
+  border-radius: 12px;
+  padding: 24px;
+  width: 520px;
+  max-width: 90vw;
+  max-height: 90vh;
+  font-family: 'JetBrains Mono', monospace;
+  color: #00ff41;
+  position: relative;
+  overflow-y: auto;
+  box-shadow: 0 20px 40px rgba(0, 255, 65, 0.2);
+}
+
+.popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  border-bottom: 1px solid rgba(0, 255, 65, 0.3);
+  padding-bottom: 12px;
+}
+
+.popup-header h2 {
+  margin: 0;
+  color: #00ff41;
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  color: #ff4444;
+  font-size: 28px;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.close-button:hover {
+  background: rgba(255, 68, 68, 0.1);
+  transform: scale(1.1);
+}
+
+.key-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.key-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.key-item input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(0, 255, 65, 0.3);
+  color: #00ff41;
+  padding: 4px 8px;
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 16px;
+  width: 40px;
+  transition: all 0.2s ease;
+}
+
+.key-item input:focus {
+  outline: none;
+  border-bottom-color: #00ff41;
+  background: rgba(0, 255, 65, 0.05);
+}
+
+.key-item input:hover {
+  border-bottom-color: rgba(0, 255, 65, 0.6);
+}
+
+.chip8-key-label {
+  color: #00ff41;
+  font-weight: bold;
+  font-size: 16px;
+  min-width: 24px;
+  display: flex;
+  align-items: center;
+}
+
+.popup-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.popup-buttons button {
+  border: none;
+  padding: 12px 24px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.cancel-button {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.8);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.cancel-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  transform: translateY(-1px);
+}
+
+.apply-button {
+  background: linear-gradient(135deg, #00aa00 0%, #00ff41 100%);
+  color: #0f0f23;
+  border: 2px solid #00ff41;
+}
+
+.apply-button:hover {
+  background: linear-gradient(135deg, #00ff41 0%, #00aa00 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 255, 65, 0.3);
+}
