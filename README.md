@@ -29,10 +29,38 @@ Rust-generated WebAssembly and using them to create a Website.
   and/or
   [`rust-parcel-template`](https://github.com/rustwasm/rust-parcel-template).
 
+## 📦 Dependencies
+
+This project requires both Rust and Node.js dependencies:
+
+### Rust Dependencies
+- **Rust toolchain**: Required for compiling WebAssembly modules
+- **wasm-pack**: Tool for building Rust-generated WebAssembly packages
+- Rust dependencies are managed via `Cargo.toml` in the WebAssembly package
+
+### npm Dependencies
+- **webpack**: Module bundler for JavaScript applications
+- **webpack-cli**: Command line interface for webpack
+- **webpack-dev-server**: Development server with live reloading
+- All npm dependencies are listed in `package.json`
+
 ## 🚴 Usage
 
 ```
 npm init wasm-app
+```
+
+### Development Commands
+
+```bash
+# Install npm dependencies
+npm install
+
+# Start development server
+npm run start
+
+# Build for production
+npm run build
 ```
 
 ## 🔋 Batteries Included

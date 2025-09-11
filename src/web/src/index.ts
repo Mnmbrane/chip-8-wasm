@@ -218,6 +218,9 @@ function openKeyRemapPopup() {
     return;
   }
 
+  // Pause the emulator while remapping
+  stopMainLoop();
+
   // Populate current values in the inputs
   populateCurrentKeyMappings();
 
@@ -270,6 +273,8 @@ function setupPopupEventHandlers() {
   const closePopup = () => {
     if (overlay) overlay.style.display = 'none';
     document.removeEventListener('keydown', handleEscKey);
+    // Resume the emulator when closing the popup
+    startMainLoop();
   };
 
   const handleEscKey = (e: KeyboardEvent) => {
