@@ -1,8 +1,8 @@
 <div align="center">
 
-  <h1><code>create-wasm-app</code></h1>
+  <h1><code>chip8 emulator</code></h1>
 
-  <strong>An <code>npm init</code> template for kick starting a project that uses NPM packages containing Rust-generated WebAssembly and bundles them with Webpack.</strong>
+  <strong>A CHIP-8 emulator built with Rust and WebAssembly, featuring a web-based interface for playing classic CHIP-8 games.</strong>
 
   <p>
     <a href="https://travis-ci.org/rustwasm/create-wasm-app"><img src="https://img.shields.io/travis/rustwasm/create-wasm-app.svg?style=flat-square" alt="Build Status" /></a>
@@ -19,15 +19,14 @@
 
 ## About
 
-This template is designed for depending on NPM packages that contain
-Rust-generated WebAssembly and using them to create a Website.
+This is a CHIP-8 emulator implemented in Rust and compiled to WebAssembly for web browsers. CHIP-8 is an interpreted programming language that was used on some microcomputers and calculators from the 1970s. This emulator allows you to play classic CHIP-8 games directly in your web browser.
 
-* Want to create an NPM package with Rust and WebAssembly? [Check out
-  `wasm-pack-template`.](https://github.com/rustwasm/wasm-pack-template)
-* Want to make a monorepo-style Website without publishing to NPM? Check out
-  [`rust-webpack-template`](https://github.com/rustwasm/rust-webpack-template)
-  and/or
-  [`rust-parcel-template`](https://github.com/rustwasm/rust-parcel-template).
+### Features
+- Full CHIP-8 instruction set implementation
+- Web-based interface with keyboard controls
+- Sound support for beep instructions
+- Real-time game rendering
+- Built with Rust for performance and compiled to WebAssembly
 
 ## 📦 Dependencies
 
@@ -46,9 +45,10 @@ This project requires both Rust and Node.js dependencies:
 
 ## 🚴 Usage
 
-```
-npm init wasm-app
-```
+### Quick Start
+
+1. Clone the repository
+2. Install dependencies and start the development server:
 
 ### Development Commands
 
